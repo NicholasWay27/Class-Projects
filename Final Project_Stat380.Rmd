@@ -1,0 +1,418 @@
+---
+title: "Final Project"
+name: Nicholas Way
+output:
+  html_document:
+    df_print: paged
+---
+
+
+## Collaboration
+
+Contributors: Nicholas Way and Sean Brislin and Mohammad
+
+Overall, Sean, Mohammad, and I worked together on the whole project(Tasks 1-3). Besides some basic stuff like the front matter and some data cleaning here and there, we worked on the project together in person a couple times. Task 1 was my primary job, it was a little difficult but after doing some research and getting help from the team I was able to complete it. Tasks 2&3 were split up between Mohammad and Sean. I helped a little bit with the EDA and coming up with a research question, but they put in most of the effort with those tasks in specific. I have no complaints and enjoyed working as a group on this project. I feel that the workload was split pretty fairly and efficiently. 
+
+
+## Front Matter
+
+```{r}
+remove(list = ls())
+
+library(tidyverse)
+library(readxl)
+library(lubridate)
+library(glmnet)
+library(rpart) 
+library(rattle) 
+library(tidyr)
+library(dplyr)
+library(caret)
+library(naivebayes)
+
+CODP1 <- read.csv("C:/Users/nicho/OneDrive - The Pennsylvania State University/Stat 380/Final Project/CODGames_p1_380.csv")
+
+CODP2 <- read.csv("C:/Users/nicho/OneDrive - The Pennsylvania State University/Stat 380/Final Project/CODGames_p2_380.csv")
+
+CODMap <- read.csv("C:/Users/nicho/OneDrive - The Pennsylvania State University/Stat 380/Final Project/CODMaps.csv")
+
+CODMode <- read.csv("C:/Users/nicho/OneDrive - The Pennsylvania State University/Stat 380/Final Project/CODGameModes.csv")
+```
+
+## Task 1
+## Research Question: Which maps are the most likely to win the map vote?
+
+I plan on answering this question by breaking the process down into small steps and then looking at the whole picture at the end. First I will look over the datasets to get a feel and see what all potential cleaning and merging needs to be done, specifically focusing on the notes left in the instructions. Next, after all of the data quality issues are resolved, I will start to focus on how I can answer the question. I will need to find a way to separate the `MapVote` into a new variable that describes a vote win/draw/loss. After that I will need to find a way to get the count of the number of times a map appears as an option to be voted on. To answer the question I will need to find the proportion of the number of times a map wins vs how many times a map was in the vote(#MapVoteWins/#MapCount).
+
+```{r}
+CODP <- full_join(CODP1, CODP2) # Combine Players 1 and 2 into one dataset
+CODP[CODP == "" | CODP == " "] <- NA # Replace blank & space by NA
+MapFiltered <- CODP %>% drop_na(MapVote) # Drop all rows that have NA in the MapVote column
+```
+
+```{r}
+# Inspect unique map names in both datasets
+unique_games_maps <- unique(c(MapFiltered$Map1, MapFiltered$Map2, MapFiltered$Choice))
+unique_maps <- CODMap$Name
+
+# Identify misspelled map names
+misspelled_maps <- unique_games_maps[!(unique_games_maps %in% unique_maps)]
+
+# Create a mapping dictionary to replace misspelled names with correct ones
+mapping_dict <- list(
+  "Jungle " = "Jungle",
+  "Ruah" = "Rush",
+  "Collateral" = "Collateral Strike",
+  "Riad" = "Raid",
+  "Miami " = "Miami",
+  "Collateral Striek" = "Collateral Strike",
+  "Miami Stirke" = "Miami Strike",
+  "Collaterol Strike" = "Collateral Strike",
+  "Drive-in" = "Drive-In",
+  "Deprogam" = "Deprogram",
+  "Rush " = "Rush",
+  "Zoo " = "Zoo",
+  "Raid " = "Raid",
+  "yamantau" = "Yamantau",
+  "Nuketown '84 Halloween" = "Nuketown '84", 
+  "Miami Sstrike" = "Miami Strike", 
+  "Amrada Strike" = "Armada Strike", 
+  "Apocolypse" = "Apocalypse", 
+  "APocalypse" = "Apocalypse", 
+  "Collaterel Strike" = "Collateral Strike",
+  "Deisel" = "Diesel")
+
+# Function to replace misspelled map names with correct ones
+replace_misspelled <- function(x) {
+  ifelse(x %in% names(mapping_dict), mapping_dict[x], x)
+}
+
+# Clean data: Replace misspelled map names with correct ones
+MapFiltered$Map1 <- replace_misspelled(MapFiltered$Map1)
+MapFiltered$Map2 <- replace_misspelled(MapFiltered$Map2)
+MapFiltered$Choice <- replace_misspelled(MapFiltered$Choice)
+
+#Check to see that there are only 28 unique and correctly spelled map names in the dataset 
+unique_games_maps2 <- unique(c(MapFiltered$Map1, MapFiltered$Map2, MapFiltered$Choice))
+```
+
+```{r}
+# Create a mapping dictionary to replace misspelled votes with correct ones
+mapping_dict2 <- list(
+  "4 o 0" = "4 to 0",
+  "2 o 0" = "2 to 0")
+
+# Function to replace misspelled votes with correct ones
+replace_misspelled2 <- function(x) {
+  ifelse(x %in% names(mapping_dict2), mapping_dict2[x], x)
+}
+
+# Clean data: Replace misspelled map votes with correct ones
+MapFiltered$MapVote <- replace_misspelled2(MapFiltered$MapVote)
+```
+
+```{r}
+#Need to convert these variables from lists into characters 
+MapFiltered$Map1 <- as.character(MapFiltered$Map1)
+MapFiltered$Map2 <- as.character(MapFiltered$Map2)
+MapFiltered$Choice <- as.character(MapFiltered$Choice)
+
+class(MapFiltered$Map1)
+class(MapFiltered$Map2)
+class(MapFiltered$Choice)
+```
+
+```{r}
+#Separate the MapVote column into WinningCount and LosingCount, then create new variable for W/L/D
+MapFiltered <- MapFiltered %>%
+  separate(MapVote, into = c("WinningCount", "LosingCount"), sep = "to",) %>%
+  mutate(MapResult = ifelse(as.numeric(WinningCount) > as.numeric(LosingCount), "W",
+                                   ifelse(as.numeric(WinningCount) < as.numeric(LosingCount), "L", "D"))) 
+```
+
+```{r}
+MapFiltered %>% # Find proportions, it makes sense that there are no "losses"
+  summarise(WinProportion = sum(MapResult == "W")/nrow(MapFiltered),
+            LossProportion = sum(MapResult == "L")/nrow(MapFiltered),
+            DrawProportion = sum(MapResult == "D")/nrow(MapFiltered))
+```
+
+```{r}
+#Calculate the total matches with vote win for each map
+choice_countsW <- MapFiltered %>%
+  filter(MapResult == "W") %>%
+  group_by(Choice) %>%
+  summarise(TotalMatchesW = n()) 
+
+choice_countsW
+
+# Calculate the total matches with vote draw for each map
+choice_countsD <- MapFiltered %>%
+  filter(MapResult == "D") %>% 
+  group_by(Choice) %>%
+  summarise(TotalMatchesD = n()) 
+
+choice_countsD
+```
+
+```{r}
+#Calculate the total amount of times a map appeared as an option to vote on in botht he columns 'Map1' and 'Map2'
+totalmap_counts <- MapFiltered %>%
+  select(Map1, Map2) %>%
+ mutate(across(everything(), trimws)) %>%
+ rowid_to_column() %>%
+ pivot_longer(-rowid) %>%
+ group_by(value) %>%
+ summarise(n = n_distinct(rowid))
+
+totalmap_counts
+
+#making sure that the sum of n is equal to the number of rows in MapFiltered times 2 because there are 2 maps per row in Mapfiltered
+sum(totalmap_counts[, 'n'])
+674*2
+```
+
+```{r}
+#Combine these tables by the map name to see the different counts
+choice_counts <- left_join(choice_countsW, choice_countsD)
+totalcounts <- left_join(choice_counts, totalmap_counts, by=c('Choice'='value'))
+totalcounts
+```
+
+```{r}
+#Find the proportion of times that each map was listed as a candidate and earned more votes than the other candidate
+totalcounts <- totalcounts %>%
+  mutate(WinP = TotalMatchesW/n)
+
+#Arrange by highest win percentages
+totalcounts %>%
+  arrange(desc(WinP))
+
+ggplot(data = totalcounts, mapping = aes(y = WinP, x = Choice)) + 
+  geom_point() + 
+  labs(x = "Map", 
+       y = "Winning Percentage") +
+  guides(x = guide_axis(angle = 90)) +
+  annotate("text", x = "Raid", y = .8, label = "Raid") + 
+  annotate("text", x = "Collateral Strike", y = .76, label = "Collateral Strike") +
+  annotate("text", x = "Nuketown '84", y = .75, label = "Nuketown '84")
+  
+```
+
+
+
+By arranging the dataset by descending winning percentages for each map, it can be seen that the map most likely to win the map vote is "Raid" with a percentage of about 72.72%. The second most likely map to win is "Crossroads Strike"(70.69%) and the third most likely map to win is "Nuketown '84"(70%).
+
+I realize that the dotplot isn't meant to be used when visualizing the relationship between one categorical and one quantitative variable, but for this case specifically it seemed to me like the easiest way to visualize what maps had the highest winning percentages(most likely to win map vote). The plot relays the same message as the table as it can be seen that the three highest labeled points are the same as the table.
+
+## Task 2
+# Data Cleaning
+
+```{r}
+# Inspect unique mode names in both datasets
+unique_games_modes <- unique(CODP$GameType)
+unique_modes <- CODMode$Mode
+
+# Identify misspelled map names
+misspelled_modes <- unique_games_modes[!(unique_games_modes %in% unique_modes)]
+
+misspelled_modes
+unique_modes
+```
+
+```{r}
+# Create a mapping dictionary to replace misspelled game modes with correct ones
+mapping_dict3 <- list(
+  "HC - TDM" = "TDM",
+  "HC - Kill Confirmed" = "Kill Confirmed",
+  "HC - Hardpoint" = "Hardpoint",
+  "HC - Domination" = "Domination")
+
+# Function to replace misspelled game modeswith correct ones
+replace_misspelled3 <- function(x) {
+  ifelse(x %in% names(mapping_dict3), mapping_dict3[x], x)
+}
+
+# Clean data: Replace misspelled game modes with correct ones
+CODP$GameType <- replace_misspelled3(CODP$GameType)
+
+
+#Check to see that there are only 4 unique and correctly spelled game modes in the dataset 
+unique_games_modes4 <- unique(CODP$GameType)
+unique_games_modes4
+```
+
+```{r}
+CODPF <- CODP %>% drop_na(Score) # Drop all rows that have NA in the Score column
+CODPF <- CODPF %>% drop_na(TotalXP) # Drop all rows that have NA in the TotalXP column
+CODPF <- CODPF %>% drop_na(GameType) # Drop all rows that have NA in the GameType column
+```
+
+# EDA
+
+```{r}
+#After using class(CODPF$GameType), need to convert list into character 
+CODPF$GameType <- as.character(CODPF$GameType)
+
+class(CODPF$GameType)
+
+#Count of rows for each level 
+table(CODPF$GameType) 
+
+#Find the proportion for each level 
+prop.table(table(CODPF$GameType)) 
+
+ggplot(data = CODPF, mapping = aes(x = GameType)) + 
+  geom_bar(fill = "white", color = "black") + 
+  labs(x = "GameType", 
+       y = "Number of Matches") +
+  guides(x = guide_axis(angle = 90))
+```
+
+`GameType` is a categorical variable with 4 levels. By far the most common game type is "TDM" with 517 matches or about 64% of the total matches. The second most common game type is "Hardpoint" with 257 matches or about 32% of the total matches. The other two game modes "Domination" and "Kill Confirmed" are not that common at all and result in less than 5% of the total matches. The bar graph reflects the proportions pretty well.
+
+```{r}
+#Summary stats for variable Score
+summary(CODPF$Score) 
+
+#Faceted box plot
+ggplot(data = CODPF, mapping = aes(x = Score)) + 
+  geom_boxplot(fill = "white", color = "black") + 
+  facet_wrap(~GameType) +
+  labs(x = "Score") 
+```
+
+`Score` is a quantitative variable with a mean of 2995 and a median of 2808. The variable has a minimum at 100 and a max of 9734, covering a large span. By faceting the boxplot for `Score` by `GameType` we can get an idea for the relationship between the two variables. By analyzing the plots, it seems that the `Score` for the game modes are all pretty much the same besides for "Kill Confirmed", which seems to maybe have a significantly smaller median score than the other three game modes do, this suggests that `GameType` may possibly affect `Score`.
+
+```{r}
+#Summary stats for variable TotalXP
+summary(CODPF$TotalXP) 
+
+#Faceted box plot
+ggplot(data = CODPF, mapping = aes(x = TotalXP)) + 
+  geom_boxplot(fill = "white", color = "black") + 
+  facet_wrap(~GameType) +
+  labs(x = "TotalXP") 
+```
+
+`TotalXP` is a quantitative variable with a mean of 15478 and a median of 14720 The variable has a minimum at 1935 and a max of 45310, covering a very large span. By faceting the boxplot for `TotalXP` by `GameType` we can get an idea for the relationship between the two variables. By analyzing the plots, it seems that the `TotalXP` for the game modes "TDM" and "Hardpoint" are similar, but that the `TotalXP` for "Kill Confirmed" has a much significantly smaller median, and that the `TotalXP` for "Domination" may have a significantly bigger median than all the other modes. These differences in the medians and boxplots suggests that `GameType` may possibly affect `TotalXP`.
+
+```{r}
+#Faceted dot plot
+ggplot(data = CODPF, mapping = aes(x = TotalXP, y = Score, color = GameType)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "TotalXP",
+       y = "Score") 
+
+#Faceted dot plot
+ggplot(data = CODPF, mapping = aes(x = TotalXP, y = Score)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "TotalXP",
+       y = "Score") 
+
+```
+
+To analyze the relationship between the variables `TotalXP` and `Score` I constructed two scatterplots, one has colors facted by the game type and one does not. The scatterplot seems to show a moderately strong positive linear relationship between `TotalXP` and `Score`, meaning that as `Score` increases, `TotalXP` increases and vice versa. Looking at the plot faceted by `GameType`, it seems that all 4 game types have nearly identical slopes, meaning that the relationship between TotalXP` and `Score` does not change between the different game modes.
+
+```{r}
+Task2Model <- lm(TotalXP ~ Score + GameType, data = CODPF) #Construct model
+
+summary(Task2Model) # summary of model to find coefficients
+```
+
+The output gives three different coefficients for `GameType`, with three of the game modes besides "Domination", meaning that these coefficients represent how `TotalXP` changes when the game mode changes from "Domination" to "Hardpoint/Kill Confirmed/TDM".
+
+Assuming that `Score` is accounted for, on average, when the `GameType` is "Hardpoint", the `TotalXP`  increases by 121.7613 compared to when the `GameType` is "Domination". 
+
+Assuming that `Score` is accounted for, on average, when the `GameType` is "Kill Confirmed", the `TotalXP`  decreases by 3703.1728 compared to when the `GameType` is "Domination". 
+
+Assuming that `Score` is accounted for, on average, when the `GameType` is "TDM", the `TotalXP` decreases by 2570.4367 compared to when the `GameType` is "Domination". 
+
+
+## Task 3
+
+# Research Question : Will an above average Elimination/Death ratio for a player result in a win?
+
+# Data Cleaning
+```{r}
+MapFiltered <- MapFiltered %>%
+  separate(Result, into = c("PlayerScore", "OpponentScore"), sep = "-") %>% 
+  mutate(MatchResult = ifelse(as.numeric(PlayerScore) > as.numeric(OpponentScore), "W", "L")) %>% # we are considering a draw as a loss
+  mutate(ElimDeathRatio = Eliminations/Deaths)
+
+```
+
+# KNN Classification
+```{r}
+MapFiltered$MatchResult <- as.factor(MapFiltered$MatchResult)
+MapFiltered <-MapFiltered[complete.cases(MapFiltered$MatchResult), ] 
+
+trainIndex <- createDataPartition(MapFiltered$MatchResult, p = 0.8,
+                                  list = FALSE,
+                                  times = 1)
+set.seed(NULL)
+
+train_data <- MapFiltered[trainIndex, ]
+test_data <- MapFiltered[-trainIndex, ]
+
+knn_model <- train(MatchResult ~ ElimDeathRatio, 
+                   data = train_data, 
+                   method = "knn", 
+                   trControl = trainControl(method = "cv"))
+knn_model
+
+MapFiltered %>%
+  ggplot(data = train_data, mapping = aes(x = Deaths, y = Eliminations, color = MatchResult)) + geom_point() + geom_point(data = test_data[1, ], color = "black", size = 2)
+```
+
+With KNN Classification we set the K value to be 5, meaning we are going to take the 5 closest values around the point. The graph being the way it is makes it very unclear on how the result will play out. The results really do not indicate if the game will end in a win or loss. This is supported with the low accuracy shown. 
+
+# Decision Tree
+```{r}
+#This indicated what is considered a average game
+average_performance <- mean(MapFiltered$ElimDeathRatio, na.rm = TRUE)
+average_performance
+```
+
+```{r}
+MapFiltered$MatchResult <- as.factor(MapFiltered$MatchResult)
+MapFiltered <-MapFiltered[complete.cases(MapFiltered$MatchResult), ] 
+
+set.seed(123)
+trainIndex <- createDataPartition(MapFiltered$MatchResult, p = 0.8,
+                                  list = FALSE,
+                                  times = 1)
+set.seed(NULL)
+
+train_data <- MapFiltered[trainIndex, ]
+test_data <- MapFiltered[-trainIndex, ]
+
+
+tree_model <- rpart(MatchResult ~ ElimDeathRatio, data = train_data, method = "class")
+
+fancyRpartPlot(tree_model)
+
+```
+
+When we set out to answer the question we wanted to know how the average performance impacts the likelihood of winning. In this method we first calculated what we want the KD to be for it to be an average performance and the value we  got for that is 1.206094. Now with that value we had to use the decision tree to see if the match result will be a win or a loss and what the probabilities for that to happen will be. So starting at the first node when it asks if the ElimDeath Ratio is less than 1.2 or not and for that we get "NO" so we go to the right of the tree and it takes us to the 3rd node where we get the answer to our question. We get that the match will probably end in a win when the player performs better than their average game. The probability of winning is 0.72 and the probability of losing is 0.28.
+
+
+# Naive Bayes
+```{r}
+set.seed(123)
+trainIndex <- sample(1:nrow(MapFiltered), floor(0.8*nrow(MapFiltered)))
+set.seed(NULL)
+
+train_data <- MapFiltered[trainIndex, ]
+test_data <- MapFiltered[-trainIndex, ]
+
+model <- naive_bayes(MatchResult ~ ElimDeathRatio, data = train_data, usekernel = T)
+plot(model)
+```
+The third method we used is the Naive Bayes and from this we could answer our question by looking at the graph and looking at where the trends end up when we are looking directly with the trends. From the previous method we established that the ElimDeathRatio that is need for the player to have a average game is 1.206094 and if we look for that in the graph above we could see that the density is higher for the win than it is for the loss. The trend of the graph shows that the lower the ElimDeathRatio the more density for loss meaning it is more likely that the game will end in a loss; and vise versa if the ElimDeathRatio is higher it is more likely that the game will end in a win. With that we could say that the value of 1.206094 is on the higher end resulting in the game most likely ending in a win. 
+
+
+# Overall Connections of the three methods used and the effectiveness of each method:
+Looking at all the three methods which were KNN Classification, Decision Tree, and Naive Bayes we could conclude we the the decision tree was probably the most effective out of the three. This is because it gave us a straight forward answer to the research question. Where to the Naive Bayes graph had us examining the trends of the graph which is also accurate but not as much as the Decision tree. Finally KNN Classification the accuracy of that was 0.60 or 60% which is not the greatest at determining what we needed to answer the question. 

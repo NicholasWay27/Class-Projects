@@ -1,0 +1,30 @@
+---
+title: "ANOVA project"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r, echo=F, include=F, warning=FALSE, message=FALSE}
+# front-matter
+#rm(list = ls()) #clear the workspace
+
+# load the typical libraries
+library(Stat2Data)
+library(tidyverse)
+library(mosaic)
+library(ggformula)
+library(Lock5Data)
+library(tinytex)
+```
+
+## Collaboration rules:  
+
+You may consult with up to two classmates for help with this project, but use your own data. Please identify who you collaborate with here.
+
+**Response:**
+
+
+# Instructions
+
+Write a report that includes an introduction to the data, appropriate EDA, model specification, the checking of conditions, and in context conclusions. To include sections in your report use the # as illustrated by the # Instructions for this section. Larger section headings have one #, smaller subsection headings have ## or ### or even ####. There should be a coherent and well-organized narrative in addition to appropriate code and figures. You may also reference your MLR project as a framework.

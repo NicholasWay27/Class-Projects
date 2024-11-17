@@ -1,0 +1,215 @@
+---
+title: "MLR Project"
+author: "Nicholas Way"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(Stat2Data)
+library(tidyverse)
+library(mosaic)
+library(ggformula)
+library(Lock5Data)
+library(tinytex)
+library(car)
+library(leaps)
+library(HH)
+```
+
+
+```{r}
+md_raw_data <- read_csv("C:/Users/nicho/OneDrive/Documents/Stat 300/Exams And Projects/MLR Project/Honda Data Baltimore.csv")  # read in the New Jersey data
+md_raw_data$location <- "Maryland"                # add a variable 'location' to the NJ dataset
+il_raw_data <- read_csv("C:/Users/nicho/OneDrive/Documents/Stat 300/Exams And Projects/MLR Project/Honda Data Chicago.csv")  # read in the Pennsylvania data
+il_raw_data$location <- "Illinois"             # add a variable 'location' to the PA dataset
+car_data_raw <- rbind(md_raw_data, il_raw_data)    # merge the two datasets together by stacking the rows
+car_data <- car_data_raw %>% 
+                  filter(mileage > 0) %>% 
+                  filter(price >0) 
+car_data$age <- 2022 - car_data$year
+```
+
+##Introduction
+
+The car I chose was the Honda CR-V, which is the same as what I chose for the SLR Project.
+
+I chose the two locations of Baltimore, Maryland and Chicago, Illinois.
+
+I chose this car because it is the car that I currently drive and love. I chose these two cities because they were the first ones I check in Auto Trader to have 300 cases.
+
+Before looking at the data, I am guessing that the prices in Chicago will be higher than the prices in Baltimore
+
+
+##Question 1
+
+```{r}
+ggplot(car_data, aes(x = mileage, y = price, color = location)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  labs(title = "Relationship between Price and Mileage by Location",
+       x = "mileage", y = "price")
+```
+
+The plot shows that the correlation between price and mileage is nearly the same for both locations.
+
+```{r}
+summary_data <- car_data %>% 
+  group_by(location) %>% 
+  summarize(mean_price = mean(price), 
+            sd_price = sd(price), 
+            min_price = min(price), 
+            max_price = max(price), 
+            mean_mileage = mean(mileage), 
+            sd_mileage = sd(mileage), 
+            min_mileage = min(mileage), 
+            max_mileage = max(mileage))
+            
+
+summary_data
+
+```
+
+From the table above, there is a difference in mean price between the two locations as well as a difference in mean mileage between the two locations. These difference in means, as well as the differences in standard deviations, suggests that there may be a difference in price between the two cities.
+
+```{r}
+
+model1 <- lm(price ~ mileage * location, data = car_data)
+
+
+summary(model1)
+
+```
+With the p value of the interaction term being .915, the interaction between location and mileage is not significant, suggesting that the slopes for the two locations are not significantly different
+
+```{r}
+
+model2 <- lm(price ~ mileage + location, data = car_data)
+
+
+summary(model2)
+
+```
+LocationMaryland appears to be statistically significant with a p value of .0332. I think model 2 is better for this specific research question because this model assumes that the relationship between mileage and price is the same for both locations, but allows the intercepts to vary. This means that any difference in price between the two locations is due to differences in the intercepts, rather than differences in the slopes.
+
+Maryland Price = 33.45 - .15(mileage) - .57(difference)
+Illinois Price = 33.45 - .15(mileage)
+
+```{r}
+plot(model2, which = 1)
+plot(model2, which = 2)
+plot(model2, which = 5)
+
+```
+
+The fitted versus residuals plot shows no clear pattern or curvature, which is a good sign that the linear regression assumptions are met.The QQ-plot shows that the residuals follow the line fairly closely, indicating that the residuals are approximately normally distributed.There are possible outliers at 18 and 355.The Cook's plot shows that there are no influential outliers, as all points fall within the Cook's distance cutoff line. Point 332 is close, but not quite there.
+
+Based on these diagnostic plots, we do not have any major concerns about the assumptions of the linear regression model.
+
+In conclusion, when assuming a linear relationship between price and mileage, there is a statistically significant difference in price between the two locations after accounting for mileage. Cars in Baltimore are priced lower on average than cars in Illinois, with a difference of $570. However, this difference may not be practically significant depending on the context of the problem. Given that Baltimore, Maryland, and Chicago, Illinois, are hundreds of miles apart, it may not be practical or efficient for someone in Baltimore to shop for a Honda CR-V in Chicago or vice versa.
+
+##Question 2
+
+```{r}
+
+
+# Scatterplot of price vs. mileage, colored by location
+ggplot(car_data, aes(x = mileage, y = price, color = location)) +
+  geom_point() +
+  labs(title = "Price vs. Mileage by Location")
+
+# Scatterplot of price vs. age, colored by location
+ggplot(car_data, aes(x = age, y = price, color = location)) +
+  geom_point() +
+  labs(title = "Price vs. Age by Location")
+
+# Scatterplot of mileage vs. age, colored by location
+ggplot(car_data, aes(x = age, y = mileage, color = location)) +
+  geom_point() +
+  labs(title = "Mileage vs. Age by Location")
+
+```
+All three of the graphs appear to have nearly the same correlation and coefficient despite representing two different locations. All three have a linear trend.
+
+```{r}
+model3 <- lm(price ~ mileage + age + location, data = car_data)
+summary(model3)
+
+```
+The Intercept of 34.50 represents the average price for a car with zero mileage and zero age, in the state of Illinois.
+For every one-unit increase in mileage, the price decreases by approximately 0.067 units, holding age and location constant.
+For every one-unit increase in age, the price decreases by approximately 1.32 units, holding mileage and location constant.
+The locationMaryland coefficient of -0.347 suggests that, on average, cars in Maryland are priced lower than cars in Illinois by $347, holding mileage and age constant. This difference is statistically significant at the 0.05 level.
+
+```{r}
+plot(model3, which = 1)
+plot(model3, which = 2)
+plot(model3, which = 5)
+```
+
+First, the residuals versus fitted plot shows a random pattern with a slight curve in the first half of the plot, however there is not enough of a pattern, indicating that the linearity assumption is reasonable.Second, the QQ plot shows that the residuals follow a fairly straight line, indicating that the normality assumption is reasonable. Finally, the Cook's distance plot shows that there are no influential observations that are unduly affecting the model. There is a point at the end of the graph that is concerning, but it does no reach the Cook's limit. Overall, the model appears to satisfy the necessary assumptions, and we can conclude that the results of the analysis are valid.
+
+Based on the linear model I created,there is evidence of a difference in price between the two locations after accounting for both mileage and age. Cars in Baltimore are priced on average $346.54 lower than cars in Chicago after controlling for the effects of mileage and age. However, as with the previous model, the practical significance of this difference may depend on the context of the problem. The results of the first model indicated that after controlling for mileage, there was evidence of a difference in price between the two locations. After controlling for these new predictors, there is still evidence of a difference in price between the two locations.
+
+##Question 3
+
+```{r}
+
+allmodel <- lm(price ~ mileage + age + mileage*age + location*mileage, data = car_data)
+summary(allmodel)
+
+```
+I decided to finalize my model by using all of the interaction terms, and none of the quadratic terms. I ran a couple of different variations before this one, but after I saw that the adjusted R-squared for this "allmodel" was .9143 I knew that it is one of, if not the best possible model to use in order to compare prices between the two locations. A model with the quadratic terms had a high adjusted r squared as well, but the coefficients were not statistically significant and therefore I thought it was better to leave them out. 
+
+Price = 35.732295 - 0.094937(mileage) - 1.557958(age) - 0.542588(locationMaryland) + 0.003962(mileage * age) + 0.003583(mileage * locationMaryland)
+
+```{r}
+plot(allmodel, which = 1)
+plot(allmodel, which = 2)
+plot(allmodel, which = 5)
+```
+
+First, the residuals versus fitted plot shows a random pattern with an even distribution along the line 0, suggesting that the conditions are met. Secondly, the QQ plot shows that the residuals follow a fairly straight line, indicating that the normality assumption is reasonable. There is a slight curve at the end of the line, but nothing that will cause the model to be untrustworthy. Finally, the Cook's distance plot shows that there are no influential observations that are unduly affecting the model. There are a few points at the bottom of the graph near the Cook's limit, but nothing alarming. Overall, the model appears to satisfy the necessary assumptions, and we can conclude that the results of the analysis are valid. This model meets the conditions much better than the models with the quadratic terms included.
+
+Assuming we are looking at a car in Maryland, the location variable is equal to 1. The predicted price can be calculated as:
+
+Price = 35.73 - 0.095(40,000) - 1.558(3) - 0.543(1) + 0.004(40,000 x 3) + 0.004(40,000 x 1)
+Price = 22,207.33
+
+Therefore, the predicted price for a car that is 3 years old and has 40,000 miles on it in Maryland is $22,207.33.
+
+```{r}
+# Convert 'location' variable to a factor
+car_data$location <- as.factor(car_data$location)
+
+# Define new data frame for prediction
+newdata <- data.frame(mileage = 40000, age = 3, location = "Maryland")
+
+# Generate prediction interval using 'allmodel'
+pred <- predict(allmodel, newdata, interval = "prediction", level = 0.95)
+
+# Print prediction interval
+pred
+
+```
+Given that both the lower and upper bounds of the interval are negative, I do not think the interval is trustworthy or representative of how much a CR-V in Baltimore would be worth if it was 3 years old and had 40,000 miles on it. The interval suggests that we are 95% confident that the price for the car will be between -$3,148 and -$2,774.
+
+##Conclusion
+
+Based on the analysis conducted on the car prices dataset for Baltimore, Maryland and Chicago, New Jersey, it was observed that the location variable had a statistically significant impact on the car prices. The other variables that contributed significantly to the car prices were mileage and age. However, the interaction between mileage and age was also found to be a significant predictor of car prices. In terms of the biggest contributor to a car's price, the model suggests that age has the highest impact, followed by mileage and location.While the model developed in this analysis may be useful for predicting car prices, it is not without limitations. One of the main limitations is that it only considers a limited set of variables and may not capture all the factors such as damages or upgrades. Additionally, the model assumes a linear relationship between the predictors and the response, which may not always hold in reality.
+
+Overall, while the model developed in this analysis is a good starting point for predicting car prices in these locations, it is not perfect and can be improved by adding more variables and exploring different model types. Furthermore, it is important to keep in mind that the model's predictions are based on historical data and may not always be accurate for future car prices. Nonetheless, the insights gained from this analysis provide a useful starting point for further exploration into the factors that influence car prices.
+
+
+
+
+
+
+
+
+
+
+
+
+

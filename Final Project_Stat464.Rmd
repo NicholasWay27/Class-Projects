@@ -1,0 +1,108 @@
+---
+title: "Stat 464 Final: An Analysis of Global Temperature Changes Over Time"
+author: "Nicholas Way"
+date: "2024-03-26"
+output: html_document
+---
+
+## Front Matter
+```{r}
+rm(list = ls())
+library(ggplot2)
+library(tidyverse)
+library(DescTools)
+```
+
+```{r}
+Climate = read.csv("C:/Users/nicho/OneDrive - The Pennsylvania State University/Year 2/Stat 464/climate_change_indicators.csv")
+```
+
+## Abstract
+
+This report presents an analysis of global temperature changes using a dataset of climate change indicators. The study aims to identify trends in temperature changes across different countries over the years, focusing on the median temperature change annually. A hypothesis tested is whether there is a significant monotonic trend in temperature changes indicative of global warming. The analysis utilizes the Page test for trends and median temperature calculations to explore these changes over time.
+
+## Introduction
+
+Global climate change, characterized by global warming, has become a pivotal concern in environmental science. This study analyzes temperature changes across various countries to detect patterns that may affirm the global warming phenomenon. The measurements have been updated yearly till 2022 from 1961. Using a comprehensive dataset of climate change indicators, this report examines the median temperature changes over time and tests for the presence of a significant monotonic trend across years.
+
+## Hypothesis:
+
+### Null Hypothesis ($H_0$)
+
+$H_0$: There is no increasing or decreasing trend across the treatments (years).
+
+### Alternative Hypothesis ($H_1$)
+
+$H_1$: There is an increasing trend across the treatments (years).
+
+The Page's test will evaluate whether the observed data significantly support $H_1$ over $H_0$, under the assumption that the treatments (years) are ordered.
+
+## Methodology
+
+The analysis began with preprocessing the dataset to format it suitably for analysis. This included reshaping the data from a wide to a long format, focusing on temperature changes over the years. The R programming language, supported by libraries such as ggplot2, tidyverse, and DescTools, facilitated the data manipulation and statistical testing. The Page test was employed to assess the presence of a monotonic trend in temperature changes across years. Additionally, median temperature changes were calculated for each year to further analyze temporal patterns.
+
+## Data Analysis
+
+```{r}
+# Reshape the data from wide to long format
+Climate_long <- Climate %>%
+  pivot_longer(cols = starts_with("F"), names_to = "Year", values_to = "TemperatureChange") %>%
+  mutate(Year = as.numeric(sub("F", "", Year))) %>%
+  drop_na(TemperatureChange) # Drop rows with NAs in TemperatureChange
+
+# Now prepare the data matrix for the PageTest
+# The PageTest requires the data to be in a matrix where each row is a subject (country)
+# and each column is a repeated measure (year)
+# Since the data is currently in long format, we first spread it out to wide format with countries as rows and years as columns
+Climate_wide <- Climate_long %>%
+  select(Country, Year, TemperatureChange) %>%
+  spread(key = Year, value = TemperatureChange) %>%
+  select(-Country) # Remove the country column for the PageTest
+
+# Convert the wide data frame to a matrix for the PageTest
+Climate_matrix <- as.matrix(Climate_wide)
+
+# Run the Page test
+result <- PageTest(Climate_matrix)
+print(result)
+
+```
+
+```{r}
+# Using Climate_long which has the columns Country, Year, TemperatureChange
+
+# Calculate the median temperature change for each year
+median_temps <- Climate_long %>%
+  group_by(Year) %>%
+  summarize(MedianTempChange = median(TemperatureChange, na.rm = TRUE))
+
+# Plot the median temperature change over time
+plot(median_temps$Year, median_temps$MedianTempChange, type = 'b',
+     xlab = 'Year', ylab = 'Median Temperature Change',
+     main = 'Median Temperature Change Over Time')
+```
+
+## Results
+
+The Page test revealed a p value of < 2.2e-16, indicating a significant monotonic trend in temperature changes over the years examined. This result supports the alternative hypothesis of a noticeable trend in global temperatures, aligning with the concerns of global warming. Furthermore, the plot of median temperature changes over time visually corroborates the statistical findings, illustrating a steady increase in global median temperature over the years.
+
+## Conclusion
+
+The analysis conducted provides evidence supporting the hypothesis of a significant trend in global temperature changes over time. This trend is indicative of global warming, highlighting the need for continued monitoring and intervention to mitigate climate change impacts. Future research should expand on this study by incorporating more comprehensive data and exploring the effects of specific variables such as greenhouse gas emissions and deforestation on global temperatures.
+
+## References
+
+Kaggle Data Source: https://www.kaggle.com/datasets/tarunrm09/climate-change-indicators 
+
+
+
+
+
+
+
+
+
+
+
+
+

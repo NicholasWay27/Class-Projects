@@ -1,0 +1,225 @@
+---
+title: 'Stat 300: Used car data project'
+author: "Nicholas Way"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+# Introduction and directions
+
+The purpose of this project is to give you experience sourcing, reading, and using real data to answer research questions using simple linear regression.  You should refer back to your previous homework assignments and R notebooks used in lecture for the relevant R codes.  You are also encouraged to get help from your instructor and TA during office hours.
+
+## Collaboration rules:  
+
+You may consult with up to two classmates for help with this project, but *use your own data*.  If you collaborate with someone and use the same make/model/zip code, you will both receive 50% of earned points if there are two of you and 33% if there are three of you.  Please identify who you collaborate with here:
+
+**List collaborators**
+Taryn and Kunal
+
+
+## Project premise
+
+Let's assume you are interested in purchasing a used car and you want to use data to help you research what you could consider a 'fair price'.  Obviously, the price of a car depends on many things, including the car's age, mileage, condition, make, and model.  At this time, we only have the tools to consider one predictor variable at a time so you will be using the variable 'age' to predict the price of used cars.  
+
+For this project you will source a new, never seen before dataset by scraping observations from autotrader.com for a make and model of your choosing.  You'll want to ultimately have a clean dataset of at least 50 cars.  Because you will likely need to eliminate some observations that are clearly errors, make sure the zip code you choose has at least 60 cars downloaded to the dataset.
+
+To get your data, go to http://myslu.stlawu.edu/~clee/dataset/autotrader/, choose the make and model, then input a zip code.  If you are choosing a more rare type of car it might be difficult to get at least 60 observations for certain zip codes.  Try a zip code close to a big city like Boston (02124), Los Angeles (90010), or Chicago (60176). Save the data and choose a name for the dataset with a .csv extension.  After you save the data, you should check the spreadsheet for any cases that should be deleted.  For example, sometimes new cars will be included (mileage of 0), or odd entries with a price of 0 will appear.  Make sure that after cleaning the data you have at least 50 observations.  Note that if you are more comfortable cleaning the data in R, you are welcome to filter your dataset as part of your code. 
+
+You should have a dataset with variables 'year', 'price' (in $1,000's), and 'mileage' (in 1,000's) ready to load into R.  Run the front-matter below to load your data into the workspace and load the packages you are most likely to need for this project.
+
+```{r, echo = F}
+# clean-up R environment
+rm(list = ls())  
+```
+
+```{r}
+library(mosaic)
+library(ggformula)
+library(tidyverse)
+library(tinytex)
+library(Stat2Data)
+library(MASS)
+```
+
+
+```{r}
+
+used_cars <- read.csv("C:/Users/nicho/OneDrive/Documents/Stat 300/SLR Project/data.csv",header=T) 
+used_cars$age <- 2022 - used_cars$year
+```
+
+# Project
+
+**Introduce your data using complete sentences.**  What kind of car are you looking at? Where did these car listings come from (zip code and town)?  Why did you choose this car and location?
+
+I am looking at Honda CR-v cars. I am looking at the zip code 16823 which is the area I live in, very close to state college. There are 300 cases in this data. I chose this listing because I recently bought a new Honda CR-V from a dealership in State College and am interested in what the average used price is for this area.
+
+
+## Model: Choose
+
+**Use R to compute each of the summary statistics below, writing them in the text next to their names.**
+
+  - average age: 4.8
+  - standard deviation of age: 3.678
+  - average price: 23.813
+  - standard deviation of price: 7.122
+
+```{r}
+summary(used_cars)
+sd( ~ age, data = used_cars)
+sd( ~ price, data = used_cars)
+```
+
+The average age is 4.8 years with a standard deviation of 3.678. The average price is 23.813 thousand with a standard deviation of 7.122 thousand.
+
+**Produce a scatterplot of the relationship between age and price.**
+
+```{r}
+plot(price ~ age, data=used_cars)
+```
+
+**Using complete sentences, describe what you've learned from your exploratory data analysis.  Make sure you are thorough, and include information about what you learned from the scatterplot.**
+
+From looking at the scatter plot and the data analysis, I can confidently infer that there is a moderately strong relationship between the age of the Honda CR-V and the price. The scatterplot is consistently linear besides one potential outlier near age 20. I can confidently assume there is a solid equal level of variance in the variables by looking at the scatterplot.
+
+## Model: Fit
+
+**Fit a simple linear model to your data.**  Use R to compute each of the summary statistics below, writing them in the text next to their names. 
+
+  - estimated intercept: 32.31
+  - estimated slope: -1.77
+  - standard error of regression: 2.889
+  - SSModel: 12681.606
+  - SSError: 2486.704
+  - SSTotal: 15168. 31
+  - degrees of freedom: 298
+  
+ **Interpret, in context, what the slope estimate tells you about age and price in your used car model.  Make sure you add a sentence about why the sign (positive or negative) makes sense.**
+
+```{r}
+model <- lm(price ~ age, data = used_cars)
+summary(model)
+sse <- sum((fitted(model)-used_cars$price)^2)
+sse
+ssr <- sum((fitted(model)-mean(used_cars$price))^2)
+ssr
+sst <- ssr+sse
+sst
+```
+
+The estimated intercept is 32.31 thousand and the estimated slope is -1.77 thousand. In context this means the equation y= -1.77x +32.21 would be used to predict the price of the car in x years where y is the price in thousands. At age 0, the predicted price is 32.21 thousand and for every year after year 0, the price would decrease by 1.77 thousand. It makes sens that the coefficient is negative because as the car gets older, the price should decrease, it would not make sense for a car to get more expensive as it gets older unless it was a collectible, which the Honda CR-V is not. 
+
+## Model: Assess
+
+#### Residual plots
+
+**Produce the appropriate residual plots**
+
+```{r}
+mplot(model, which = 1)
+mplot(model, which = 2)
+cooksplot(model)
+```
+**Comment on how well your data appear to fit the conditions for a simple linear model.**  At this point, don't worry about doing any transformations if there are problems with the conditions, just mention them.  
+
+All three plots show that there is an outlier at point 288 and possibly a outlier at point 127. If you take the point 288 out of the residuals vs fitted plot, then the points seem to be in a "horizontal band around the 0 line, which allows the assumption of linearity for the model. There appears to be a slight lack of equal variance among the points due to the downward curve in the residuals vs fitted plot. The Q-Q line appears to be a straight line, so we can assume that the normal distribution condition is met.
+
+#### Unusual points
+
+Find the car in your sample with the largest (in magnitude) residual.  **What is the age and price of this car?**
+
+```{r}
+head(used_cars, 288)
+```
+
+The age of the car with the highest residual is case number 288. It has a price of 11.999 thousand at age 20.
+
+**Use R to find this car's studentized residual, leverage, and Cook's distance.**  Would any of these values be considered unusual?  Why or why not?  Again, use complete sentences.
+
+```{r}
+stud_resids <- studres(model)
+tail(stud_resids, 13)
+hats <- hatvalues(model)
+tail(hats, 13)
+cooks <- cooks.distance(model)
+tail(cooks, 13)
+```
+
+The studentized residual of the car is 5.665. The leverage of the car is .0604. The cooks distance of the car is 9.348e-01.
+
+## Model: Use
+#### Confidence interval
+**Compute and interpret a 95% confidence interval for the slope of your model.**
+
+```{r}
+confint(model, "age", level=0.95)
+```
+
+The 95% confidence interval for the slope is (-1.859, -1.681).
+
+#### Coefficient of determination
+**Report the coefficient of determination (r-squared) and show how it can be computed using values from the ANOVA table.**  
+
+```{r}
+summary(model)
+anova(model)
+```
+**Interpret the value in context using a complete sentence.**
+
+You can calculate R squared by filling in the values in the equation R^2 = 1 − sum squared regression (SSR) total sum of squares (SST).The coefficient of determination is .8361 which means that 83.61% of the variation in the prices can be explained by the age of the cars.
+
+#### Hypothesis tests
+
+**Test the strength of the linear relationship between age and price using all three methods discussed in class.**  For each of them, write the hypotheses (it's fine to type them out without using special symbols), discuss how to calculate test statistic and show its value, indicate the reference distribution (t or F including degrees of freedom), and report the p-values.  At the end, you can write one conclusion in context that reflects the conclusion based on all three p-values.
+
+1. Test for correlation: Ho B=0 Ha B!=0
+
+2. Test for slope: t=(b-0)/(se)
+
+3. ANOVA for regression: anova(model)
+
+```{r}
+x <- used_cars$age
+y <- used_cars$price
+cor.test(x, y)
+summary(model)
+anova(model)
+```
+**Conclusion in context:**
+
+All three tests produced a p value of nearly 0. This means that I will reject the null hypothesis and accept that there is strong evidence that suggests the the correlation between the age and price of Honda CR-V cars in the 16823 area is not 0.
+
+#### Predictions
+
+Suppose you are interested in purchasing a car of this make and model that is five years old.  For each of quantities below, show how to complete the calculations using formulas (with the correct numbers in the correct places).  For the intervals, write a sentence that carefully interprets each in terms of car prices.
+
+1. Predicted value for price of a car that is five years old
+
+price= 32.31080 -1.77041(age), price= 32.31080 -1.77041(5), price= 23.45875 thousand.
+
+2. 90% confidence interval for the *mean price* of a car at this age
+
+```{r}
+predict.lm(model, newdata = data.frame(age = 4.8), interval = "confidence", level = .9)
+```
+
+90% of the time, we can confidently assume the price of the Honda CR-V at the mean age of 4.8 will be between 23.537 thousand and 24.088 thousand dollars.
+
+3. 90% prediction interval for the price of an *individual* car of this age.
+
+```{r}
+predict.lm(model, newdata = data.frame(age = 5), interval = "prediction", level = .9)
+```
+
+90% of the time, we can confidently assume that the price of the Honda CR-V at age 5 will be priced between 18.684 thousand and 28.233 thousand dollars.
+
+# Discussion
+
+According to your model, is there an age at which the car should be free?  If so, find out what this age is and comment on what the 'free car phenomenon' says about the appropriateness of your model.  
+
+32.31080/1.77041 = 18.25 After reaching the age of around 18.25 In my data though, there are cars that happen to be older than 18.25 years that still cost money to buy, so no matter how old a car is, the price will always be above 0. 
+
+

@@ -1,0 +1,977 @@
+---
+title: "Full Project Code"
+author: "Annalise Chang, George Guo, Nicholas Way"
+output: html_notebook
+---
+
+# IMPORTANT NOTE: Despite the fact that there is a lot of writing in this file, this is NOT the final report.
+
+# Part 1: Logistic Regression with Mushroom Data
+
+## Front Matter 
+
+```{r} 
+library(tidyverse) 
+library(pROC)
+library(caret)
+library(flexmix)
+
+Mushroom <-
+  read.csv("https://raw.githubusercontent.com/aycpsu/stat400finalproj/main/mushroomData.csv", na = ".") %>%
+  select(-X)
+
+#Create new variable that represents bruisesTrueFalse(1 = yes, 0 = no) 
+
+Mushroom$bruises <- ifelse(Mushroom$bruisesTrueFalse == 1, "Yes", "No") 
+
+#Subset the data by removing rows with NAs
+MushroomSubset <- na.omit(Mushroom)
+``` 
+
+## EDA 
+
+
+```{r} 
+#Check missing data 
+sum(is.na(Mushroom)) 
+
+colSums(is.na(Mushroom))
+``` 
+
+There are 2480 instances of missing data overall. All of these missing values are in the `stalkRoot` column/variable, which makes sense because that variable was the only one with a “missing” level coded into it. 
+
+```{r} 
+head(Mushroom) 
+``` 
+
+### Response Variable
+
+```{r poisonous} 
+#Create new variable that represents poisonous(1 = yes, 0 = no)
+Mushroom$poisonous1 <- ifelse(Mushroom$poisonous == 1, "Yes", "No")
+
+#Count of rows  
+table(Mushroom$poisonous1) 
+
+#Find the proportion for each level  
+prop.table(table(Mushroom$poisonous1)) 
+
+ggplot(data = Mushroom, mapping = aes(x = as.factor(poisonous1))) + 
+  geom_bar(fill = "white", color = "black") + 
+  labs(x = "Poisonous Or Not", 
+       y = "Number of Mushrooms") 
+``` 
+
+By calculating the proportions, it appears that a little more than half of the mushrooms in our dataset are not poisonous, while a little less than half of the mushrooms in our dataset are poisonous. Our plot showing the distribution of mushrooms and `poisonous` visualizes these proportions, as it is nearly symmetrical and even. 
+
+### Predictor variables
+
+**Since our research question involves finding the variables that best predict whether a mushroom is poisonous or not, we are faceting the plots by `poisonous` to see if any patterns stand out between the variable and their relation to being poisonous or not.**
+
+```{r capShape} 
+#Count of rows for each level 
+table(Mushroom$capShape) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$capShape)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = capShape)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Cap Shape", 
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`capShape` is a categorical variable with 5 levels. The proportions for the variable `capShape` are heavily concentrated in the "flat"(38.7%) and "convex"(45%) levels. Based on this plot, which is unevenly distributed across 5 levels, it seems that convex and flat are the two most common cap shapes. There is no significant difference in the distribution of cap shapes when faceting by `poisonous`, as the graphs for both poisonous and not are nearly identical in distribution and shape. 
+
+```{r capSurface} 
+#Count of rows for each level 
+table(Mushroom$capSurface) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$capSurface)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = capSurface)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Cap Surface", 
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`capSurface` is a categorical variable with 4 levels. The proportions for `capSurface` are pretty evenly distributed among three of the levels (fibrous, scaly, smooth) with a disproportion in the level "grooves"(.04%). The plot shows the distribution of `capSurface` faceted by poison status. The graphs are pretty much the same, except it seems that the proportion of poisonous mushrooms with a fibrous cap surface is much smaller than the proportion of nonpoisonous mushrooms with a fibrous cap surface. This indicates that `capSurface` may be a useful variable when trying to predict whether or not a mushroom is poisonous. 
+
+```{r capColor} 
+#Count of rows for each level 
+table(Mushroom$capColor) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$capColor)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = capColor)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Cap Color", 
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`capColor` is a categorical variable with 10 levels. There are 5 colors with large proportions within the data set and then there are 5 other colors that do not appear much within the data set at all. The plot does not suggest that `poisonous` is dependent on `capColor` because the graphs are nearly identical for both levels of `poisonous`.
+
+```{r bruisesTrueFalse}
+#Create new variable that represents bruisesTrueFalse(1 = yes, 0 = no)
+Mushroom$bruises <- ifelse(Mushroom$bruisesTrueFalse == 1, "Yes", "No")
+
+#Count of rows for each level 
+table(Mushroom$bruises) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$bruises)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = as.factor(bruises))) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Bruises", 
+       y = "Number of Mushrooms",) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`bruises` is a categorical variable with 2 levels (Yes or No). In the data set, about 60% of the mushrooms do not have bruises. The plot does suggest that `poisonous` may be dependent on `bruises` because the poisonous mushrooms overwhelmingly have no bruises, while nonpoisonous mushrooms overwhelmingly have bruises, this can be seen in the differences between the plots. 
+
+```{r odor} 
+#Count of rows for each level 
+table(Mushroom$odor) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$odor)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = odor)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Odor", 
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`odor` is a categorical variable with 9 levels. In the data set, about 25% of the mushrooms have a foul odor, and about 43% of the mushrooms have no odor. The plot does suggest that poison status may be dependent on odor because the poisonous mushrooms overwhelmingly have some kind of odor, while nonpoisonous mushrooms overwhelmingly have no odor, this can be seen in the differences between the plots.
+
+```{r gillAttachment} 
+#Count of rows for each level 
+table(Mushroom$gillAttachment) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$gillAttachment)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = gillAttachment)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +
+  labs(x = "Gill Attachment",
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`gillAttachment` is a categorical variable with 2 levels (free or attached). In the data set, almost 97.5% of the mushrooms have a free gill. The plot does not suggest that `poisonous` is dependent on `gillAttachment` because the plots are nearly identical, it appears that no matter whether the mushroom is poisonous or not, the gill attachment generally does not change. 
+
+```{r gillSpacing} 
+#Count of rows for each level 
+table(Mushroom$gillSpacing) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$gillSpacing)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = gillSpacing)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Gill Spacing", 
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`gillSpacing` is a categorical variable with 2 levels (close or crowded). In the data set, almost 84% of the mushrooms have a close gill. The plot does not suggest that `poisonous` is dependent on `gillSpacing` because the plots are nearly identical, it appears that no matter whether the mushroom is poisonous or not, the gill spacing does not change, with the gill being much more likely to be close than crowded.
+
+```{r gillSize} 
+#Count of rows for each level 
+table(Mushroom$gillSize) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$gillSize)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = gillSize)) +
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Gill Size",
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`gillSize` is a categorical variable with 2 levels (broad or narrow). In the data set, about 69% of the mushrooms have a broad gill. The plot does suggest that poison status may be dependent on `gillSize` because the plots are very different, it appears that nonpoisonous mushrooms are almost guaranteed to have broad gills, while poisonous mushrooms are neither slightly unlikely to have broad gills. 
+
+```{r gillColor} 
+#Count of rows for each level 
+table(Mushroom$gillColor) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$gillColor)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = gillColor)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Gill Color", 
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`gillColor` is a categorical variable with 12 levels. In the dataset, the most common gill color is buff, which attributes to about 21% of the mushrooms. The plot does suggest that poison status may be dependent on `gillColor` because even though the plots are similar, it appears that nonpoisonous mushrooms have no buff-colored gills, while poisonous mushrooms are likely to have buff-colored gills. 
+
+```{r stalkShape} 
+#Count of rows for each level 
+table(Mushroom$stalkShape) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$stalkShape)) 
+  
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = stalkShape)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Stalk Shape", 
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`stalkShape` is a categorical variable with 2 levels (enlarging and tapering). In the data set, the most common stalk shape is tapering, which applies to about 56% of the mushrooms. The plot does not suggest any significance between poison status and stalk shape because the distribution of `stalkShape` is very similar between the two plots faceted by `poisonous`. This suggests that we cannot predict whether a mushroom is poisonous or not based on its stalk shape. 
+
+```{r stalkRoot} 
+#Count of rows for each level 
+table(Mushroom$stalkRoot) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$stalkRoot)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = stalkRoot)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Stalk Root", 
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`stalkRoot` is a categorical variable with 4 levels. In the dataset, the most common stalk root type is bulbous, which applies to about 67% of the mushrooms. Unfortunately, this variable has a moderate portion of missing data. However, the plot still does not suggest any significance between `poisonous` and `stalkRoot` because the distribution of `stalkRoot` is very similar between the two plots faceted by poisonous. This suggests that we cannot predict whether a mushroom is poisonous or not based on its stalk root type. 
+
+```{r stalkSurfaceAboveRing} 
+#Count of rows for each level 
+table(Mushroom$stalkSurfaceAboveRing) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$stalkSurfaceAboveRing)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = stalkSurfaceAboveRing)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Stalk Surface Above Ring", 
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`stalkSurfaceAboveRing` is a categorical variable with 4 levels. In the dataset, the most common `stalkSurfaceAboveRing` is smooth, which applies to about 64% of the mushrooms. The plot does suggest that there may be significance between `poisonous` and `stalkSurfaceAboveRing` because the distribution of `stalkSurfaceAboveRing` is different between the two plots faceted by `poisonous`. It seems that nonpoisonous mushrooms are very likely to be smooth, while poisonous mushrooms are more likely to be silky. This suggests that we may be able to predict whether a mushroom is poisonous or not based on its `stalkSurfaceAboveRing` level. 
+
+```{r stalkSurfaceBelowRing} 
+#Count of rows for each level 
+table(Mushroom$stalkSurfaceBelowRing) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$stalkSurfaceBelowRing)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = stalkSurfaceBelowRing)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Stalk Surface Below Ring", 
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`stalkSurfaceBelowRing` is a categorical variable with 4 levels. In the dataset, the most common `stalkSurfaceBelowRing` level is smooth, which is attributed to about 60% of the mushrooms. The plot is nearly identical to the previous variable `stalkSurfaceBelowRing` and therefore does suggest there may be significance between `poisonous` and `stalkSurfaceBelowRing` because the distribution of `stalkSurfaceBelowRing` is different between the two plots faceted by `poisonous`. It seems that nonpoisonous mushrooms are very likely to be smooth, while poisonous mushrooms are more likely to be silky. This suggests that we may be able to predict whether a mushroom is poisonous or not based on its `stalkSurfaceBelowRing` level.
+
+```{r}
+table(Mushroom$stalkSurfaceBelowRing, Mushroom$stalkSurfaceAboveRing)
+(276 + 24 + 1800 + 4156)/8124
+```
+
+$77.006%$ of mushrooms have the same stalk surface above and below the ring. Thus, it may be best to include only one of the two stalk surface variables in the final model to avoid redundancy.
+
+```{r stalkColorAboveRing} 
+#Count of rows for each level 
+table(Mushroom$stalkColorAboveRing) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$stalkColorAboveRing)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = stalkColorAboveRing)) + 
+  geom_bar(fill = "white", color = "black") + 
+  facet_wrap(~poisonous1) +  
+  labs(x = "Stalk Color Above Ring", 
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`stalkColorAboveRing` is a categorical variable with 9 levels. In the dataset, the most common level is white, which applies to about 55% of the mushrooms. The plot does not really suggest any significance between `poisonous` and `stalkColorAboveRing` because the distribution of `stalkColorAboveRing` is fairly similar between the two plots faceted by `poisonous`. It seems that nonpoisonous mushrooms are very likely to be white, and poisonous mushrooms are still likely to be white. This suggests that we probably can't predict whether a mushroom is poisonous or not based off their `stalkColorAboveRing` level. 
+
+```{r stalkColorBelowRing} 
+#Count of rows for each level 
+table(Mushroom$stalkColorBelowRing) 
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$stalkColorBelowRing)) 
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = stalkColorBelowRing)) +
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Stalk Color Below Ring",
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`stalkColorBelowRing` is a categorical variable with 9 levels. In the dataset, the most common `stalkColorBelowRing` is white, which applies to about 54% of the mushrooms. The plot is nearly identical to the previous variable `stalkColorAboveRing` and similarly does not suggest any significance between `poisonous` and `stalkColorBelowRing` because the distribution of `stalkColorBelowRing` is nearly identical between the two plots faceted by `poisonous`. It seems that nonpoisonous mushrooms are very likely to be white, and poisonous mushrooms are still likely to be white. This suggests that we probably can't predict whether a mushroom is poisonous or not based on its `stalkColorBelowRing` level.
+
+```{r veilType}
+#Count of rows for each level 
+table(Mushroom$veilType)  
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$veilType))  
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = veilType)) +
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Veil Type",
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`veilType` is a categorical variable that is supposed to have two levels: partial and universal. Every case in this data set has the same veil type - partial. Checking the original data file confirms that this was not a mistake in the recoding process. This observation makes `veilType` an easy variable to eliminate as a model predictor. 
+
+```{r veilColor}
+#Count of rows for each level 
+table(Mushroom$veilColor)  
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$veilColor))  
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = veilColor)) +
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Veil Color",
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`veilColor` is a categorical variable with four levels brown, orange, white, and yellow. Most cases (97.538%) have a white veil. Additionally, there is little variation in the veil color between poisonous and non-poisonous mushrooms, indicating that the variable may not be useful for differentiating cases in the data set. 
+
+```{r ringNumber} 
+#Count of rows for each level 
+table(Mushroom$ringNumber)  
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$ringNumber))  
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = ringNumber)) +
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Number of Rings", 
+       y = "Number of Mushrooms")  +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`ringNumber` is a categorical variable with three levels: 0, 1, and 2 rings. While the category levels are numerical, the range of values is too small to treat the variable as continuous. The majority (92.171%) of all mushrooms observed had one ring. Additionally, there is little variation in the number of rings between poisonous and non-poisonous mushrooms, indicating that the variable may not be a useful model predictor. 
+
+```{r ringType} 
+#Count of rows for each level 
+table(Mushroom$ringType)  
+
+#Find the proportion for each level  
+
+prop.table(table(Mushroom$ringType))  
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = ringType)) +  
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Ring Type",
+       y = "Number of Mushrooms") +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`ringType` is a categorical variable with eight levels, though only five appear in the data: evanescent, flaring, large, none, and pendant. The most common ring type across all mushrooms (48.843%) is pendant, though the bar chart indicates that pendant rings are much more prevalent on non-poisonous mushrooms. Additionally, large rings appear to only be present on poisonous mushrooms. These distinctions indicate that `ringType` may be a useful model predictor of poison status.
+
+```{r sporePrintColor} 
+#Count of rows for each level 
+table(Mushroom$sporePrintColor)
+
+#Find the proportion for each level 
+prop.table(table(Mushroom$sporePrintColor))  
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = sporePrintColor)) +
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Sporeprint Color",
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`sporePrintColor` is a categorical variable with nine levels: black, brown, buff, chocolate, green, orange, purple, white, and yellow. The most common colors among all mushrooms are black (23.043%), brown (24.225%), chocolate (20.089%), and white (29.394%). When separated by poison status, black and brown appear much more prominently in non-poisonous mushrooms and chocolate and white appear more in poisonous mushrooms. The other colors are uncommon, but nonetheless, this variable may be a useful model predictor of poison status. 
+
+```{r population}
+#Count of rows for each level 
+table(Mushroom$population)  
+
+#Find the proportion for each level
+prop.table(table(Mushroom$population))  
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = population)) +
+  geom_bar(fill = "white", color = "black") +
+  facet_wrap(~poisonous1) +
+  labs(x = "Population Type",
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`population` is a categorical variable with six levels: abundant, clustered, numerous, scattered, several, and solitary. When looking at all mushrooms in the data set, the most common population type is "several" (49.729%). However, when splitting the data by poison status, we see that poisonous mushrooms make up most of those cases. Additionally, a mushroom with an abundant, clustered, or numerous population type appears much more likely to be non-poisonous. These distinctions may make this variable a useful model predictor. 
+
+```{r habitat} 
+#Count of rows for each level 
+table(Mushroom$habitat)  
+
+#Find the proportion for each level  
+prop.table(table(Mushroom$habitat))  
+
+#Faceted bar chart
+ggplot(data = Mushroom, mapping = aes(x = habitat)) +  
+  geom_bar(fill = "white", color = "black") +  
+  facet_wrap(~poisonous1) +
+  labs(x = "Habitat",
+       y = "Number of Mushrooms") +
+  guides(x = guide_axis(angle = 90)) +
+  ggtitle("Poisonous") +
+  theme(plot.title = element_text(hjust = 0.5))
+``` 
+
+`habitat` is a categorical variable with seven levels: grasses, leaves, meadows, paths, urban, waste, and woods. Most mushrooms across the data set appear in grasses (26.440%) or woods (38.749%). When splitting by poison status, a mushroom in leaves or paths is more likely to be poisonous, but the mushrooms in grasses or woods may not have that distinctly higher likelihood between poisonous or not. Thus, path habitats may be useful model predictors, but other indicators may be less so. 
+
+## Model Fitting and Comparison
+
+### Cap Model
+
+```{r} 
+modelCap <- glm(poisonous ~ capShape + capSurface + capColor + bruises, data = Mushroom) 
+summary(modelCap) #Use summary to find AIC 
+
+BIC(modelCap) # Function that calculates BIC 
+
+# 1. Predict Probabilities
+probabilitiesCap <- predict(modelCap, type = "response")
+
+# 2. Generate Predictions
+predictionsCap <- ifelse(probabilitiesCap > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixCap <- confusionMatrix(factor(predictionsCap), factor(Mushroom$poisonous), positive = "1")
+print(confusionMatrixCap)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultCap <- roc(Mushroom$poisonous, probabilitiesCap)
+auc(roc_resultCap)
+
+# This will calculate and print the AUC
+``` 
+
+### Odor Model
+
+```{r} 
+modelOdor <- glm(poisonous ~ odor, data = Mushroom) 
+summary(modelOdor) #Use summary to find AIC 
+
+BIC(modelOdor) # Function that calculates BIC 
+
+# 1. Predict Probabilities
+probabilitiesOdor <- predict(modelOdor, type = "response")
+
+# 2. Generate Predictions
+predictionsOdor <- ifelse(probabilitiesOdor > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixOdor <- confusionMatrix(factor(predictionsOdor), factor(Mushroom$poisonous), positive = "1")
+print(confusionMatrixOdor)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultOdor <- roc(Mushroom$poisonous, probabilitiesOdor)
+auc(roc_resultOdor)
+
+# This will calculate and print the AUC
+``` 
+
+### Gill Model  
+
+```{r} 
+modelGill <- glm(poisonous ~ gillAttachment + gillSpacing + gillSize + gillColor, data = Mushroom) 
+summary(modelGill) #Use summary to find AIC 
+
+BIC(modelGill) # Function that calculates BIC 
+
+# 1. Predict Probabilities
+probabilitiesGill <- predict(modelGill, type = "response")
+
+# 2. Generate Predictions
+predictionsGill <- ifelse(probabilitiesGill > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixGill <- confusionMatrix(factor(predictionsGill), factor(Mushroom$poisonous), positive = "1")
+print(confusionMatrixGill)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultGill <- roc(Mushroom$poisonous, probabilitiesGill)
+auc(roc_resultGill)
+
+# This will calculate and print the AUC
+``` 
+
+### Stalk1 Model 
+
+```{r} 
+modelStalk1 <- glm(poisonous ~ stalkShape + stalkRoot + stalkSurfaceAboveRing + stalkSurfaceBelowRing, data = MushroomSubset) 
+summary(modelStalk1) #Use summary to find AIC 
+
+BIC(modelStalk1) # Function that calculates BIC 
+
+# 1. Predict Probabilities
+probabilitiesStalk1 <- predict(modelStalk1, type = "response")
+
+# 2. Generate Predictions
+predictionsStalk1 <- ifelse(probabilitiesStalk1 > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixStalk1 <- confusionMatrix(factor(predictionsStalk1), factor(MushroomSubset$poisonous), positive = "1")
+print(confusionMatrixStalk1)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultStalk1 <- roc(MushroomSubset$poisonous, probabilitiesStalk1)
+auc(roc_resultStalk1)
+
+# This will calculate and print the AUC
+``` 
+
+### StalkC Model  
+
+```{r} 
+modelStalkC <- glm(poisonous ~ stalkColorAboveRing + stalkColorBelowRing + veilColor, data = Mushroom) 
+summary(modelStalkC) #Use summary to find AIC 
+
+BIC(modelStalkC) # Function that calculates BIC 
+
+# 1. Predict Probabilities
+probabilitiesStalkC <- predict(modelStalkC, type = "response")
+
+# 2. Generate Predictions
+predictionsStalkC <- ifelse(probabilitiesStalkC > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixStalkC <- confusionMatrix(factor(predictionsStalkC), factor(Mushroom$poisonous), positive = "1")
+print(confusionMatrixStalkC)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultStalkC <- roc(Mushroom$poisonous, probabilitiesStalkC)
+auc(roc_resultStalkC)
+
+# This will calculate and print the AUC
+``` 
+
+### Ring Model
+
+```{r} 
+modelRing <- glm(poisonous ~ ringNumber + ringType, data = Mushroom) 
+summary(modelRing) #Use summary to find AIC 
+
+BIC(modelRing) # Function that calculates BIC 
+
+# 1. Predict Probabilities
+probabilitiesRing <- predict(modelRing, type = "response")
+
+# 2. Generate Predictions
+predictionsRing <- ifelse(probabilitiesRing > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixRing <- confusionMatrix(factor(predictionsRing), factor(Mushroom$poisonous), positive = "1")
+print(confusionMatrixRing)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultRing <- roc(Mushroom$poisonous, probabilitiesRing)
+auc(roc_resultRing)
+
+# This will calculate and print the AUC
+``` 
+
+### Spore Model  
+
+```{r} 
+modelSpore <- glm(poisonous ~ sporePrintColor, data = Mushroom) 
+summary(modelSpore) #Use summary to find AIC 
+
+BIC(modelSpore) # Function that calculates BIC 
+
+# 1. Predict Probabilities
+probabilitiesSpore <- predict(modelSpore, type = "response")
+
+# 2. Generate Predictions
+predictionsSpore <- ifelse(probabilitiesSpore > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixSpore <- confusionMatrix(factor(predictionsSpore), factor(Mushroom$poisonous), positive = "1")
+print(confusionMatrixSpore)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultSpore <- roc(Mushroom$poisonous, probabilitiesSpore)
+auc(roc_resultSpore)
+
+# This will calculate and print the AUC
+``` 
+
+### Environment Model  
+
+```{r} 
+modelEnvironment <- glm(poisonous ~ population + habitat, data = Mushroom) 
+summary(modelEnvironment) #Use summary to find AIC 
+
+BIC(modelEnvironment) # Function that calculates BIC  
+
+# 1. Predict Probabilities
+probabilitiesEnvironment <- predict(modelEnvironment, type = "response")
+
+# 2. Generate Predictions
+predictionsEnvironment <- ifelse(probabilitiesEnvironment > 0.5, 1, 0)
+
+# 3. Confusion Matrix and Accuracy
+confusionMatrixEnvironment <- confusionMatrix(factor(predictionsEnvironment), factor(Mushroom$poisonous), positive = "1")
+print(confusionMatrixEnvironment)
+
+# This will give you a confusion matrix and the overall accuracy
+
+# 4. AUC Calculation
+roc_resultEnvironment <- roc(Mushroom$poisonous, probabilitiesEnvironment)
+auc(roc_resultEnvironment)
+
+# This will calculate and print the AUC
+``` 
+
+
+
+# Part 2: Multilevel Modeling with Reaction Time
+
+## Front Matter
+
+```{r}
+library(lme4)
+library(FNN)
+ReactionUnfiltered <- read.csv("https://raw.githubusercontent.com/mkshaw/learn-mlms/master/data/hoffman2007.csv") 
+```
+
+## EDA  
+
+```{r}
+#Check missing data  
+sum(is.na(ReactionUnfiltered))  
+
+colSums(is.na(ReactionUnfiltered)) 
+``` 
+
+There are 314 instances of missing data overall. All of these missing values are in the potential response variables `rt_sec` and `lg_rt` columns. We will remove these cases with the na's. 
+
+```{r} 
+#Get rid of NA's 
+
+Reaction <- na.omit(ReactionUnfiltered) 
+
+#Create new variable that represents sex(0 = Male, 1 = Female) 
+
+Reaction$sex2 <- ifelse(Reaction$sex == 1, "Female", "Male") 
+Reaction$oldage2 <- ifelse(Reaction$oldage == 1, "Old", "Not Old")
+``` 
+
+```{r}  
+Reaction <-
+  Reaction %>%
+  select(-X)
+head(Reaction)  
+``` 
+
+### Response Variable 
+
+
+```{r rt_sec}  
+#Find the mean and standard deviation for each id and pass the means to ggplot 
+
+rt_agg <- Reaction %>% 
+  group_by(id) %>% 
+  summarize(mean_rt = mean(rt_sec, na.rm = TRUE), 
+            sd_rt = sd(rt_sec, na.rm = TRUE)) %>% 
+  ggplot(mapping = aes(x = mean_rt)) + 
+     geom_histogram(binwidth = 2, fill = "white", color = "black") + 
+     labs(x = "Mean Reaction Time", 
+          y = "Number of People")
+rt_agg 
+``` 
+
+Since each row may not be independent, we will aggregate the variables first grouping by the id(each person) and then finding the mean of reaction time. When analyzing the histogram, the distribution is skewed right and the most frequent mean reaction time among the participants is about 5 seconds. 
+
+```{r lg_rt} 
+#Find the mean and standard deviation for each id and pass the means to ggplot 
+lg_rt_agg <- Reaction %>% 
+  group_by(id) %>% 
+  summarize(mean_lg_rt = mean(lg_rt, na.rm = TRUE), 
+            sd_lg_rt = sd(lg_rt, na.rm = TRUE)) %>% 
+  ggplot(mapping = aes(x = mean_lg_rt)) + 
+     geom_histogram(binwidth = .25, fill = "white", color = "black") + 
+     labs(x = "Mean Log Reaction Time", 
+          y = "Number of People") 
+
+lg_rt_agg 
+``` 
+
+`lg_rt` is a quantitative variable that represents the person's log reaction time. Similarly as before, since each row is not independent we will aggregate the variables first grouping by the id(each person) and then finding the mean of the log reaction time. When analyzing the histogram, it is identical to the distribution of the reaction time plot, which makes sense. This plot is also skewed right and the most frequent mean reaction time among the participants is about 1.25 seconds. 
+
+### Predictor variables 
+
+```{r sex2}  
+#Since the level 2 variables take the same value for each row of each id, keep the first row associated with each id. Use this to get summaries on varaibles that do not change for each person 
+
+react_lev2 <-  
+  Reaction %>% 
+  group_by(id) %>% 
+  filter(row_number() == 1)  
+
+table(react_lev2$sex2) 
+prop.table(table(react_lev2$sex2)) 
+
+sexgraph <- ggplot(data = react_lev2, mapping = aes(x = sex2)) +  
+  geom_bar(fill = "white", color = "black") + 
+  labs(x = "Gender", 
+       y = "Frequency") 
+
+sexgraph 
+``` 
+
+`sex2` is a categorical variable with 2 levels. The proportions for the variable `sex2` are more concentrated with females(60%) and less concentradted with males(40%). Based on this plot, we can see that among all the participants in the data, there are slightly more females than males.  
+
+```{r age}  
+agegraph <- ggplot(data = react_lev2, mapping = aes(x = age)) +  
+  geom_histogram(binwidth = 2, fill = "white", color = "black") + 
+  labs(x = "Age", 
+       y = "Frequency") 
+agegraph 
+``` 
+
+`age` is a quantitative variable that describes the participant's age. The plot shows the distribution of `age` among all the participants in the data. The histogram is pretty interesting, as it appears there are two clusters(age groups) among the participants. There is one age group that is around 20 years old or slightly younger, and another group that is around 70 years old or slightly older.  
+
+```{r meaning}  
+#Find the mean and standard deviation for each id and pass the means to ggplot 
+meaning_agg <- Reaction %>% 
+  group_by(id) %>% 
+  summarize(mean_meaning = mean(meaning, na.rm = TRUE), 
+            sd_meaning = sd(meaning, na.rm = TRUE)) %>% 
+  ggplot(mapping = aes(x = mean_meaning)) + 
+     geom_histogram(binwidth = .05, fill = "white", color = "black") + 
+     labs(x = "Mean Meaning Value", 
+          y = "Number of People") 
+
+meaning_agg 
+``` 
+
+`meaning` is a quantitative variable that is a numerical representation of the how meaningful the picture is to driving. By grouping by `id` we can get a good feel for the distribution of the mean `meaning` value among the participants. By analyzing the histogram, it appears the distribution is nearly symmetrical with the most frequent mean `meaning` value being about 2.65. 
+
+```{r salience} 
+#Find the mean and standard deviation for each id and pass the means to ggplot 
+salience_agg <- Reaction %>% 
+  group_by(id) %>% 
+  summarize(mean_salience = mean(salience, na.rm = TRUE), 
+            sd_salience = sd(salience, na.rm = TRUE)) %>% 
+  ggplot(mapping = aes(x = mean_salience)) + 
+     geom_histogram(binwidth = .05, fill = "white", color = "black") + 
+     labs(x = "Mean Salience Value", 
+          y = "Number of People") 
+
+salience_agg 
+``` 
+
+`salience` is a quantitative variable that is a numerical representation of how salient the change was in the picture. By grouping by `id` we can get a good feel for the distribution of the mean `salience` value among the participants. By analyzing the histogram, it appears the distribution is slightly skewed right with the most frequent mean `salience` value being about 3. 
+
+```{r oldage2}  
+table(react_lev2$oldage2) 
+prop.table(table(react_lev2$oldage2)) 
+
+oldagegraph <- ggplot(data = react_lev2, mapping = aes(x = oldage2)) +  
+  geom_bar(fill = "white", color = "black") + 
+  labs(x = "Older Than 40 Or Not", 
+       y = "Frequency") 
+oldagegraph 
+``` 
+
+`oldage2` is a categorical variable with 2 levels(older than 40 & younger than 40). In the data set, about 37% of the participants are older than 40, and about 63% of the participants are younger than 40. The bar plot shows this distribution in the age groups among the participants. 
+
+```{r yrs65}  
+#Find the mean and standard deviation for each id and pass the means to ggplot 
+yrs65_agg <- Reaction %>% 
+  group_by(id) %>% 
+  summarize(mean_yrs65 = mean(yrs65, na.rm = TRUE), 
+            sd_yrs65 = sd(yrs65, na.rm = TRUE)) %>% 
+  ggplot(mapping = aes(x = mean_yrs65)) + 
+     geom_histogram(binwidth = 5, fill = "white", color = "black") + 
+     labs(x = "Mean Years Older Than 65", 
+          y = "Number of People") 
+
+yrs65_agg 
+``` 
+
+`yrs65` is a quantitative variable that represents the number of years that a participant is older than 65 years old if they are in the age group that is 40 years and older. The plot is heavily skewed right, with the majority of the participants being about 0 years older than 65 (younger than 40 or younger than 65 but older than 40).
+
+### Bivariate Plots Relating To Research Question 
+
+
+```{r} 
+theme.1 <- theme(axis.title.x = element_text(size = 14), 
+  axis.title.y = element_text(size = 14), 
+  plot.title=element_text(hjust=.9,face="italic",size=12)) 
+  
+
+#We cannot make a lattice plot for Age vs Reaction Time since age does not change from case to case when the individual remains the same 
+
+
+# Lattice plot for Salience vs. Reaction Time 
+
+theme.1 <- theme(axis.title.x = element_text(size = 14), 
+  axis.title.y = element_text(size = 14), 
+  plot.title=element_text(hjust=.9,face="italic",size=12)) 
+
+ggplot(Reaction,aes(x=salience,y=rt_sec)) + theme.1 +  
+  geom_point() + geom_smooth(method="lm",color="red") +  
+  facet_wrap(~id,ncol=20) +    
+  theme(strip.text.x=element_blank()) + ylim(0,20) + 
+  labs(x="Salience Value",y="Reaction Time (in seconds)") 
+
+``` 
+
+Each individual plot represents the relationship between `rt_sec` and `salience` for eahc individual person. By analyzing the collection of these individual plots, we can discover potential trends in the data as a whole. Just by looking at the trends in the plots, it seems that a vast majority of the participants have a slightly negative correlation in the relationship between the two variables. 
+
+```{r} 
+rt_agg_age <- Reaction %>% 
+  group_by(id) %>% 
+  summarize(mean_rt = mean(rt_sec, na.rm = TRUE), 
+            sd_rt = sd(rt_sec, na.rm = TRUE), 
+            age = age) %>% 
+  ggplot(mapping = aes(x = age, y = mean_rt)) + 
+  geom_point() + 
+  geom_smooth(method="lm",color="red") + 
+     labs(x = "Age in Years", 
+          y = "Mean Reaction Time (in seconds)") 
+
+rt_agg_age 
+``` 
+
+We discovered earlier that there are two distinct age groups that describe the participants, as we can see these two clusters on the plot. It appears that there may be a moderately strong positive correlation between the variables `Age` and `rt_sec`. This makes sense intuitively, as we would generally expect a 80 year old to have a slower reaction time than a 20 year old.
+
+```{r} 
+rt_agg_sal <- Reaction %>% 
+  group_by(id) %>% 
+  summarize(mean_rt = mean(rt_sec, na.rm = TRUE), 
+            sd_rt = sd(rt_sec, na.rm = TRUE), 
+            mean_sal = mean(salience, na.rm = TRUE), 
+            sd_sal = sd(salience, na.rm = TRUE)) %>% 
+  ggplot(mapping = aes(x = mean_sal, y = mean_rt)) + 
+  geom_point() + 
+  geom_smooth(method="lm",color="red", se = FALSE) + 
+     labs(x = "Mean Salience Value", 
+          y = "Mean Reaction Time (in seconds)") 
+
+rt_agg_sal 
+``` 
+
+ 
+This plot represents the relationship between the mean salisnce value and the mean reaction time when the data is grouped by `id`(each participant). Even though the linear smoother suggests that there is a positive correlation between `salience` and `rt_sec`, the plot of dots appears to almost appear like a horizontal band, similar to how a Q-Q plot would look. This suggests that there may not be a strong relationship between `salience` and `rt_sec`. 
+
+
+## Model Fitting and Comparisons
+
+### Random intercepts model
+```{r}
+summary(lmer(lg_rt ~ 1 + (1 | id), data = Reaction))
+```
+
+### Models of interest
+```{r}
+
+model1 <- lmer(rt_sec ~ salience + age + (1 | id), data = Reaction, REML = FALSE)
+model2 <- lmer(rt_sec ~ salience + age + salience*age + (1 | id), data = Reaction, REML = FALSE)
+summary(model1)
+summary(model2)
+
+anova(model1, model2, test = "Chisq")
+```

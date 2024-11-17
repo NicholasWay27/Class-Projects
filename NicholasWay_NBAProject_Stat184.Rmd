@@ -1,0 +1,338 @@
+---
+title: "NBA Project"
+author: "Nicholas Way"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+
+```{r}
+rm(list = ls())
+
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+
+
+NBAPlayer <- read.csv("C:/Users/nicho/OneDrive/Documents/Stat 184/Project/NBA Stats 202223 All Stats  NBA Player Props Tool.csv")
+
+NBATeam <- read.csv("C:/Users/nicho/OneDrive/Documents/Stat 184/Project/NBA Stats 202223 Team Metrics Away-Home-Last 5 Splits.csv")
+```
+
+
+# EDA 
+## Guiding Question: Which team has the best/worst overall record this season, and what factors are contributing to their success/failure? 
+
+I found my data on nbastuffers.com
+
+Here is a description of the website I found :
+ 
+NBAstuffer, started out as a hobby site by Serhat Ugur in 2007, has grown into a reputable stats-reference that delivers unique metrics and NBA analytics content some of which can’t be found anywhere else. Supported by dynamic charts and visualizations; our comprehensive, sortable, and filterable stats help more than 1 million people who want to analyze NBA. Our research tools such as schedule analysis, rest days stats, analytics primer have become a phenomenon and are referenced quite often by media outlets and create engagement through social media.
+
+In the dataset NBAPlayer, each case represents one player in the regular season of 2022-2023. There are a total of 609 players noted with 29 unique variables. In the dataset NBATeam, each case represents one team in the regular season of 2022-2023. There are a total of 30 teams noted with 24 unique variables. 
+
+Some of the variables I plan on looking at in NBAPlayer are USG, PPG, TPG, TS, and eFG
+
+Some of the variables I plan on looking at in NBATeam are PPG, oPPG, win., and eDIFF.
+
+```{r}
+# Get a summary of the data sets
+summary(NBAPlayer)
+summary(NBATeam)
+```
+
+I just wanted to get the summaries of every variable before diving into any plots or models, just to get the relative idea of the averages for each variable so that we can compare later on.
+
+```{r}
+# Look at the top winning teams in the data
+NBATeam %>%
+  select(TEAM, WIN., eDIFF, PPG) %>%
+  arrange(desc(WIN.))
+```
+
+```{r}
+# Dive into the top players with VI
+NBAPlayer %>%
+  select(NAME, TEAM, VI, PPG, TO.) %>%
+  arrange(desc(VI))
+```
+
+
+```{r}
+# Plot with different variables
+plot(PPG ~ WIN., data = NBATeam)
+plot(eDIFF ~ WIN., data = NBATeam)
+plot(PACE ~ WIN., data = NBATeam)
+```
+
+I just wanted to create some plots and data sets that may show some patterns between players that are playing efficiently, and how well their corresponding teams are performing. For example, Nikola Jokic and Giannis Antetokounmpo have the highest VI rating, and both of their teams have the most wins in their respective conference.
+
+
+# Data Analysis
+
+```{r}
+# Create the data frame
+lookup_table <- data.frame(Abbreviation = c("Atl", "Bos", "Bro", "Cha", "Chi", "Cle", "Dal", "Den", "Det", "Gol", "Hou", "Ind", "Lac", "Lal", "Mem", "Mia", "Mil", "Min", "Nor", "Nyk", "Okc", "Orl", "Phi", "Pho", "Por", "Sac", "San", "Tor", "Uta", "Was"),
+                            Full_Name = c("Atlanta", "Boston", "Brooklyn", "Charlotte", "Chicago", "Cleveland", "Dallas", "Denver", "Detroit", "Golden State", "Houston", "Indiana", "LA Clippers", "LA Lakers", "Memphis", "Miami", "Milwaukee", "Minnesota", "New Orleans", "New York", "Oklahoma City", "Orlando", "Philadelphia", "Phoenix", "Portland", "Sacramento", "San Antonio", "Toronto", "Utah", "Washington"))
+
+# Join the two tables
+NBAPlayer <- NBAPlayer %>%
+  left_join(lookup_table, by = c("TEAM" = "Abbreviation"))
+
+NBAFull <- NBATeam %>%
+  left_join(NBAPlayer, by = c("TEAM" = "Full_Name"))
+```
+
+Now that my data is merged, it will be easier to conduct some research
+
+```{r}
+# Select columns of interest from NBAPlayer table
+player_stats <- NBAFull %>% 
+  select(TEAM, USG., PPG.y, RPG, APG, NAME, TO., MPG, VI, eFG., TS.)
+
+# Aggregate to get the highest usage player for each team
+highest_minutes_player <- player_stats %>% 
+  group_by(TEAM) %>% 
+  slice_max(MPG)
+
+# Merge with NBATeam table to get the winning percentage for each team
+team_stats <- NBATeam %>% 
+  select(TEAM, WIN.)
+
+# Join the tables together
+highest_minutes_player_with_win_pct <- highest_minutes_player %>% 
+  left_join(team_stats, by = "TEAM")
+```
+
+```{r}
+# Trying to find some correlations within the data
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$USG.)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$PPG.y)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$RPG)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$APG)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$TO.)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$MPG)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$VI)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$eFG.)
+cor(highest_minutes_player_with_win_pct$WIN., highest_minutes_player_with_win_pct$TS.)
+```
+It seems that there is very weak correlations between a team's winning percentage during the regular season and the stats of the team's player with the most minutes per game. The strongest correlation was .46 for the variable eFG., which measures field goal percentage when accounting for the fact that 3 pointers are worth more than 2 pointers.
+
+```{r}
+# Merge tables by team name
+model_data <- inner_join(player_stats, team_stats, by = "TEAM")
+
+# Create linear regression model to predict winning percentage based on player stats
+model <- lm(WIN. ~ PPG.y + RPG + APG + TO. + USG. + MPG + VI + eFG., data = model_data)
+
+# View model summary to see which player stats are significant predictors of winning percentage
+summary(model)
+```
+
+For the variables MPG and eFG., the p values are .04 and .07 which can in most cases, mean that there is a significance between the variable and what is being predicted, which in this case is the win percentage of teams. This is very interesting and could potentially mean that these are the factors that have the most impact on a team's winning percentage.
+
+```{r}
+plot(model)
+```
+The residuals vs fitted values plot is randomly scattered throughout and is centered around the line (residuals = 0). This means that the conditions of equal variance and linearity are met. The Normal Q-Q plot is mostly linear with some curvature at the tail ends, even though it is not completely linear, I think it is safe to say that the conditions of normality and linearity are met for this specific model. The residuals vs leverage plot is completely random and has no points beyond the cook's distance, showing us that no singular point has too much leverage in the model.
+
+```{r}
+# Subset the data to include only the top 5 teams with the best and worst records
+top_teams <- NBATeam %>% 
+  select(TEAM, WIN.) %>% 
+  arrange(desc(WIN.))%>% 
+  head(5)
+
+head(top_teams)
+
+bot_teams <- NBATeam %>% 
+  select(TEAM, WIN.) %>% 
+  arrange(WIN.)%>% 
+  head(5)
+
+head(bot_teams)
+
+# Combine the top and bottom 5 teams
+combined_teams <- bind_rows(top_teams, bot_teams)
+```
+
+The Team with the worst record this season was Detroit with a winning percentage of 20.7%. The team with the best record this season was Milwaukee with a winning percentage of 70.7%.
+
+```{r}
+# Calculate the mean values of different factors for the top 5 and bottom 5 teams
+top_teams_means <- NBAFull %>% 
+  filter(TEAM %in% top_teams$TEAM) %>% 
+  group_by(TEAM) %>% 
+  summarise(mean_PPG = mean(PPG.y), 
+            mean_RPG = mean(RPG), 
+            mean_APG = mean(APG), 
+            mean_TO = mean(TO.), 
+            mean_USG = mean(USG.), 
+            mean_MPG = mean(MPG),
+            mean_eFG = mean(eFG.))
+
+bot_teams_means <- NBAFull %>% 
+  filter(TEAM %in% bot_teams$TEAM) %>% 
+  group_by(TEAM) %>% 
+  summarise(mean_PPG = mean(PPG.y), 
+            mean_RPG = mean(RPG), 
+            mean_APG = mean(APG), 
+            mean_TO = mean(TO.), 
+            mean_USG = mean(USG.), 
+            mean_MPG = mean(MPG),
+            mean_eFG = mean(eFG.))
+```
+
+```{r}
+# Convert the tables into long format
+top_teams_means_long <- top_teams_means %>% 
+  pivot_longer(cols = -TEAM, names_to = "factor", values_to = "mean_value")
+
+bot_teams_means_long <- bot_teams_means %>% 
+  pivot_longer(cols = -TEAM, names_to = "factor", values_to = "mean_value")
+
+#Combine the long tables into one
+combined_means <- bind_rows(top_teams_means_long, bot_teams_means_long)
+```
+
+```{r}
+#Plot the differences in means between the top and bottom 5 teams 
+ggplot(combined_means, aes(x = factor, y = mean_value, fill = TEAM)) +
+  geom_col(position = "dodge", width = 0.5, color = "black") +
+  scale_fill_manual(values = c("#D4001E", "#006BB6", "#FDB927", "#008348", "#CE1141", "#FFC0CB", "#00FF00", "#FF00FF", "#00FFFF", "#800080")) +
+  labs(title = "Mean Values of Different Factors for Top 5 Teams and Bottom 5 Teams",
+       x = "Factors",
+       y = "Mean Value") +
+  theme_minimal()
+```
+When looking at the mean_MPG, the 4 highest teams are San Antonio, Portland, Detroit, and Charlotte. All of these teams are in the worst 5 teams in terms of winning percentages, this could potentially show us once again that MPG may be a factor of WIN. Other than that particular variable, there seems to be no clear difference in means between the top 5 winning and bottom 5 winning teams in the league.
+
+
+
+```{r}
+# Select the specific teams and variables of interest
+two_teams <- NBATeam %>% 
+  filter(TEAM %in% c("Milwaukee", "Detroit")) %>% 
+  select(TEAM, PPG, oPPG, eDIFF, PACE, WIN.)
+
+# Reshape the data into long format
+two_teams_long <- two_teams %>% 
+  pivot_longer(cols = -TEAM, names_to = "variable", values_to = "value")
+
+# Create a grouped bar chart
+ggplot(two_teams_long, aes(x = variable, y = value, fill = TEAM)) +
+  geom_col(position = "dodge") +
+  labs(x = "", y = "Value", fill = "") +
+  facet_wrap(~ variable, scales = "free_y") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+```
+When looking at the difference in team stats between the top and bottom teams of the NBA, there seems to be no clear difference maker, besides the variable eDIFF, which is the efficiency differential between a team's offense and defense, which makes perfect sense as how this variable would correlate to a team winning or not. 
+
+eDIFF: Efficiency Differential = [(Total Offensive Efficiency) – (Total Defensive Efficiency)]/ (Games Played)
+
+
+```{r}
+#Find the avaergae team stats for every team
+average_team_stats <- NBAFull %>%
+  group_by(TEAM) %>%
+  summarize(mean_eFG = mean(eFG.), 
+            mean_VI = mean(VI), 
+            mean_MPG = mean(MPG), 
+            mean_USG = mean(USG.), 
+            mean_PPG = mean(PPG.y), 
+            mean_RPG = mean(RPG), 
+            mean_APG = mean(APG), 
+            mean_TO = mean(TO.),
+            mean_WIN. = mean(WIN.))
+```
+
+```{r}
+# Plot a graph for each average of a varaible for a team and measure it's relative correlation to winning percentage.
+
+ggplot(average_team_stats, aes(x = mean_PPG, y = mean_WIN.)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Mean PPG", y = "Winning Percentage")
+
+ggplot(average_team_stats, aes(x = mean_eFG, y = mean_WIN.)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Mean eFG", y = "Winning Percentage")
+
+ggplot(average_team_stats, aes(x = mean_VI, y = mean_WIN.)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Mean VI", y = "Winning Percentage")
+
+ggplot(average_team_stats, aes(x = mean_APG, y = mean_WIN.)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) + 
+  labs(x = "Mean APG", y = "Winning Percentage")
+
+ggplot(average_team_stats, aes(x = mean_RPG, y = mean_WIN.)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) + 
+  labs(x = "Mean RPG", y = "Winning Percentage")
+
+ggplot(average_team_stats, aes(x = mean_MPG, y = mean_WIN.)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Mean MPG", y = "Winning Percentage")
+
+ggplot(average_team_stats, aes(x = mean_USG, y = mean_WIN.)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Mean USG", y = "Winning Percentage")
+```
+
+The only graph to have a moderately strong correlation was the plot of the teams' average eFG and their winning percentage. As we saw earlier in our research, the variable, eFG had a positive correlation of about .46 with the variable WIN, and it seems that it has shown itself within this graph as well.
+
+```{r}
+# Calculate and just observe closer the mean eFG for each team for further analysis
+team_eFG_means <- NBAFull %>%
+  group_by(TEAM) %>%
+  summarise(mean_eFG = mean(eFG.)) %>%
+  arrange(desc(mean_eFG))
+
+team_eFG_ranks <- team_eFG_means %>%
+  mutate(rank = row_number())
+
+team_eFG_ranks
+
+```
+
+After ranking each team by their average eFG The Milwaukee Bucks have the best WIN. and are ranked number 14 with a eFG that is very close to the top with .535, meanwhile the Detroit Pistons have the worst WIN. in the league and are ranked in the bottom 5 with a eFG of .505. This is just another example of how we can sort the data for trends in eFG and WIN.
+
+# Conclusion
+
+## My Challenge:
+The two biggest challenges were merging the two data tables of player statistics and team statistics, and then, after merging the data, trying to find any correlation between individual player statistics and their team’s winning percentage. I was able to work through this challenge and find a way to bring the two data sets together in a productive way. I feel that through a lot of data analysis, I was able to find a correlation between a team's eFG and their winning percentage
+
+Basketball is a team sport, and a player's individual stats don't always tell the whole story of a team's success. Factors like team chemistry, coaching strategy, and player roles also play important roles in a team's overall success.
+
+## Significant Finding
+After conducting my data analysis, I can conclude that with a p value of .07 and a moderately positive correlation of .46, the variable eFG is the most important factor when accounting for a team's success or failure in winning. The team with the worst record this season was the Detroit Pistons, with a winning percentage of 20.7%. The team with the best record this season was the Milwaukee Bucks, with a winning percentage of 70.7%.  As previously mentioned, the Pistons has one of the worst average eFG, while the Bucks had one of the best, further solidifying my conclusion and analysis.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
